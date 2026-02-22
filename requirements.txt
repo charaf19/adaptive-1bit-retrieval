@@ -1,0 +1,10 @@
+# Core dependencies (retrieval + experiments + paper figures)
+numpy>=1.26
+pandas>=2.1
+matplotlib>=3.8
+tqdm>=4.66
+datasets>=2.20
+sentence-transformers>=3.0
+faiss-cpu>=1.8.0
+tabulate>=0.9.0
+huggingface_hub>=0.23
