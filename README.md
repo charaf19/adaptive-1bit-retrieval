@@ -1,18 +1,17 @@
 # Adaptive-1Bit: 1-bit FAISS + Asymmetric Memory-Mapped Reranking
 
-This repository implements a **two-stage Retrieval-Augmented Generation (RAG)** pipeline:
+This repository implements a **Two-Stage Dense Vector Retrieval Component**:
 
 1. **Stage 1 (Recall):** FAISS **binary** search using **1-bit quantized** embeddings (very fast + memory-efficient)
 2. **Stage 2 (Precision):** Re-rank candidates using the original **float32** embeddings
-3. **(Optional) Generation:** Explain the recommendation with a local **GGUF** LLM (llama-cpp-python)
 
 The code is designed so that **every experiment produces reproducible CSV tables and PNG figures** for direct insertion into a paper.
 
 ## Contributions & State-of-the-Art Novelty
 
-While traditional vector databases rely heavily on Approximate Nearest Neighbor (ANN) graphs (like HNSW) or Product Quantization (PQ) which consume vast memory or suffer from complex graph maintenance, **Binary-RAG** presents a highly efficient alternative designed to maximize both speed and recall without requiring specialized model re-training.
+While traditional vector databases rely heavily on Approximate Nearest Neighbor (ANN) graphs (like HNSW) or Product Quantization (PQ) which consume vast memory or suffer from complex graph maintenance, **this component** presents a highly efficient alternative designed to maximize both speed and recall without requiring specialized model re-training.
 
-1. **Adaptive 1-bit Quantization (Entropy Maximization):** Standard 1-bit approaches use naive zero-thresholding (`x > 0`). Binary-RAG alternatively introduces a data-driven approach by computing the median value per embedding dimension across the targeted corpus. This ensures optimally balanced bits (entropy maximization), capturing significantly more informational variance from off-the-shelf continuous models (e.g., Nomic, MiniLM).
+1. **Adaptive 1-bit Quantization (Entropy Maximization):** Standard 1-bit approaches use naive zero-thresholding (`x > 0`). This approach alternatively introduces a data-driven approach by computing the median value per embedding dimension across the targeted corpus. This ensures optimally balanced bits (entropy maximization), capturing significantly more informational variance from off-the-shelf continuous models (e.g., Nomic, MiniLM).
 2. **Zero-Training Drop-In Replacement:** Unlike recent methods that require specific contrastive training or Matryoshka Representation Learning to produce binary-friendly embeddings, this pipeline effectively adapts *any standard continuous dense model* into an ultra-compressed 1-bit index instantly without any tuning. 
 3. **Asymmetric Two-Stage Pipeline:** It cleverly bridges the hardware-accelerated advantages of POPCNT operations in a brute-force FAISS `IndexBinaryFlat` (stage 1) with an asymmetric memory-mapped `float32` re-ranking step (stage 2). This yields near-exact L2 recall while drastically minimizing the search index's main memory footprint compared to large HNSW graphs.
 4. **Comprehensive Benchmarking & Reproducibility:** Provides a fully automated, paper-ready framework to rigorously benchmark the proposed approach against well-established ANN algorithms (HNSW, IVF-PQ, conventional PQ, IVF-Flat). It automatically sweeps hyperparameters and plots Pareto-optimal frontiers (Latency vs. Recall).
@@ -27,7 +26,6 @@ While traditional vector databases rely heavily on Approximate Nearest Neighbor 
 │   ├── data_loader.py
 │   ├── indexer.py
 │   ├── engine.py
-│   ├── generator.py
 │   └── analytics.py
 ├── experiments/
 │   ├── sensitivity_analysis.py
@@ -36,13 +34,8 @@ While traditional vector databases rely heavily on Approximate Nearest Neighbor 
 │   ├── ablation_study.py
 │   ├── model_robustness.py
 │   ├── latency_profiling.py
-│   ├── evaluate_recommender.py
-│   ├── failure_analysis.py
-│   ├── rag_qa_eval.py
 │   └── scalability_test.py
 └── scripts/
-    ├── download_models.sh
-    ├── download_models.ps1
     ├── run_all.sh
     └── run_all.ps1
 ```
@@ -64,71 +57,6 @@ pip install -U pip
 pip install -r requirements.txt
 ```
 
-### Optional: enable local GGUF generation (llama-cpp-python)
-
-Generation is **not required** for the retrieval experiments or paper figures.
-Only scripts that import `src.generator.Generator` need it.
-
-**Recommended (pre-built wheels):**
-
-```bash
-# CPU wheel (works without a compiler)
-pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-
-# NVIDIA GPU wheel (pick your CUDA version: cu121/cu122/cu123/cu124/cu125)
-pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
-```
-
-**Windows tip:** to *force* a wheel (avoid building from source), use:
-
-```powershell
-pip install --only-binary=:all: llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-```
-
-If you prefer installing from source, you must have a working C/C++ toolchain on your OS.
-
-#### Windows troubleshooting: "Can't find 'nmake'" / "CMAKE_C_COMPILER not set"
-
-If `pip install llama-cpp-python` tries to build from source on Windows, it may fail with errors like:
-`Can't find 'nmake'` or `CMAKE_C_COMPILER not set`.
-
-Fix options:
-
-1) **Use the pre-built wheel commands above** (recommended).
-2) Install **Visual Studio Build Tools** (Desktop development with C++) and run pip inside the
-   "x64 Native Tools Command Prompt".
-3) Use MinGW via **w64devkit** and force the generator/compiler (example):
-
-```powershell
-$env:CMAKE_GENERATOR = "MinGW Makefiles"
-$env:CMAKE_ARGS = "-DGGML_OPENBLAS=on -DCMAKE_C_COMPILER=C:/w64devkit/bin/gcc.exe -DCMAKE_CXX_COMPILER=C:/w64devkit/bin/g++.exe"
-pip install llama-cpp-python
-```
-
-## 2) Download the (optional) GGUF generation model
-
-If you want **generation** (LLM explanations), download a small GGUF model:
-
-```bash
-bash scripts/download_models.sh
-```
-
-Windows:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\download_models.ps1
-```
-
-By default the script downloads a small instruct GGUF into `models/` and also copies it to:
-`models/tinyllama.gguf` (the default expected by `config.py`).
-
-If you already have a GGUF file, just set:
-
-```bash
-export BINARY_RAG_GENERATION_MODEL_PATH="path/to/your_model.gguf"
-```
-
-> Note: Retrieval experiments do **not** require the generation model. Only scripts that import `src.generator.Generator` do.
 
 ## 3) Ingest datasets (Books + ArXiv)
 
@@ -289,34 +217,8 @@ Outputs:
 - `results/figures/scalability_books.png`
 - `results/figures/scalability_arxiv.png`
 
-### 5.8 (Optional) Recommender evaluation + failure analysis + QA check
 
-Requires the GGUF generation model.
 
-```bash
-python -m experiments.evaluate_recommender
-python -m experiments.failure_analysis
-python -m experiments.rag_qa_eval
-```
-
-## Windows troubleshooting (llama-cpp-python)
-
-If you see errors like **"Can't find 'nmake'"** or **"CMAKE_C_COMPILER not set"**, it means pip tried to build
-`llama-cpp-python` from source but your build tools aren't available.
-
-Fix options:
-
-1) **Use the pre-built wheels** (recommended): see the install commands above.
-
-2) **Install build tools (Visual Studio Build Tools)** and re-run `pip install llama-cpp-python`.
-
-3) **Use MinGW via w64devkit** (set generator + compilers), then install:
-
-```powershell
-$env:CMAKE_GENERATOR = "MinGW Makefiles"
-$env:CMAKE_ARGS = "-DGGML_OPENBLAS=on -DCMAKE_C_COMPILER=C:/w64devkit/bin/gcc.exe -DCMAKE_CXX_COMPILER=C:/w64devkit/bin/g++.exe"
-pip install llama-cpp-python
-```
 
 ## 6) Generate all final paper figures + tables
 

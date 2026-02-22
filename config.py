@@ -109,10 +109,3 @@ BASELINE_SWEEP_N_QUERIES = int(os.getenv("BINARY_RAG_BASELINE_SWEEP_N_QUERIES", 
 BATCH_SIZE = int(os.getenv("BINARY_RAG_BATCH_SIZE", "64"))
 RANDOM_SEED = int(os.getenv("BINARY_RAG_RANDOM_SEED", "42"))
 
-# ----------------------------
-# Generation (optional)
-# ----------------------------
-# Path to a local GGUF model file. Download via README commands.
-GENERATION_MODEL_PATH = str(Path(os.getenv("BINARY_RAG_GENERATION_MODEL_PATH", MODELS_DIR / "tinyllama.gguf")))
-GENERATION_N_CTX = int(os.getenv("BINARY_RAG_GENERATION_N_CTX", "2048"))
-GENERATION_N_THREADS = int(os.getenv("BINARY_RAG_GENERATION_N_THREADS", "4"))
